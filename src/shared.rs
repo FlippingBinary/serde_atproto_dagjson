@@ -6,45 +6,43 @@ use serde::{de, Deserialize, Serialize};
 /// The values are the already parsed/decoded data.
 #[derive(Debug)]
 pub(crate) enum ReservedKeyValueParsed {
-    Cid(Cid),
+    Link(Cid),
     Bytes(Vec<u8>),
 }
 
-/// Used for deserializing a DAG-JSON map, consisting of the reserved key `/`.
+/// Used for deserializing a DAG-JSON map, consisting of the reserved key `$link`.
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct ReservedKeyMap {
-    #[serde(rename = "/")]
-    pub(crate) _slash: ReservedKeyValue,
+pub(crate) struct ReservedKeyLinkMap {
+    #[serde(rename = "$link")]
+    pub(crate) _link: String,
 }
 
-/// Used for deserializing a DAG-JSON map, consisting of the reserved key `/`.
+/// Used for deserializing a DAG-JSON map, consisting of the reserved key `$bytes`.
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(untagged)]
-pub(crate) enum ReservedKeyValue {
-    Cid(String),
-    Bytes { bytes: String },
+pub(crate) struct ReservedKeyBytesMap {
+    #[serde(rename = "$bytes")]
+    pub(crate) _bytes: String,
 }
 
-impl ReservedKeyValue {
+impl ReservedKeyLinkMap {
     pub(crate) fn parse<E>(&self) -> Result<ReservedKeyValueParsed, E>
     where
         E: de::Error,
     {
-        match self {
-            ReservedKeyValue::Cid(base_encoded_cid) => {
-                let cid = Cid::try_from(&base_encoded_cid[..]).map_err(|_| {
-                    de::Error::custom(format!("Invalid CID `{}`", base_encoded_cid))
-                })?;
-                Ok(ReservedKeyValueParsed::Cid(cid))
-            }
-            ReservedKeyValue::Bytes {
-                bytes: base_encoded_bytes,
-            } => {
-                let bytes = Base::Base64.decode(&base_encoded_bytes[..]).map_err(|_| {
-                    de::Error::custom(format!("Cannot base decode bytes `{}`", base_encoded_bytes))
-                })?;
-                Ok(ReservedKeyValueParsed::Bytes(bytes))
-            }
-        }
+        let cid = Cid::try_from(&self._link[..])
+            .map_err(|_| de::Error::custom(format!("Invalid CID `{}`", self._link)))?;
+        Ok(ReservedKeyValueParsed::Link(cid))
+    }
+}
+
+impl ReservedKeyBytesMap {
+    pub(crate) fn parse<E>(&self) -> Result<ReservedKeyValueParsed, E>
+    where
+        E: de::Error,
+    {
+        let bytes = Base::Base64.decode(&self._bytes[..]).map_err(|_| {
+            de::Error::custom(format!("Cannot base decode bytes `{}`", self._bytes))
+        })?;
+        Ok(ReservedKeyValueParsed::Bytes(bytes))
     }
 }

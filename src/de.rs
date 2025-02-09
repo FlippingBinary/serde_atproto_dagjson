@@ -1,18 +1,18 @@
 //! Deserialization.
 use std::{fmt, io};
 
-use ipld_core::cid::serde::CID_SERDE_PRIVATE_IDENTIFIER;
+use ipld_core::cid::{multibase::Base, serde::CID_SERDE_PRIVATE_IDENTIFIER, Cid};
 use serde::{
     de::{
         self,
         value::{BytesDeserializer, StringDeserializer},
     },
-    Deserialize,
+    Deserialize as _,
 };
 
 use crate::{
     error::DecodeError,
-    shared::{ReservedKeyMap, ReservedKeyValue, ReservedKeyValueParsed},
+    shared::{ReservedKeyBytesMap, ReservedKeyLinkMap, ReservedKeyValueParsed},
 };
 
 /// Decodes a value from DAG-JSON data in a slice.
@@ -22,7 +22,7 @@ use crate::{
 /// Deserialize a `String`
 ///
 /// ```
-/// # use serde_ipld_dagjson::de;
+/// # use serde_atproto_dagjson::de;
 /// let input = br#""foobar""#;
 /// let value: String = de::from_slice(input).unwrap();
 /// assert_eq!(value, "foobar");
@@ -47,7 +47,7 @@ where
 /// Deserialize a `String`
 ///
 /// ```
-/// # use serde_ipld_dagjson::de;
+/// # use serde_atproto_dagjson::de;
 /// let input = br#""foobar""#;
 /// let value: String = de::from_reader(&input[..]).unwrap();
 /// assert_eq!(value, "foobar");
@@ -85,9 +85,10 @@ where
     where
         V: de::Visitor<'de>,
     {
-        let reserved = ReservedKeyMap::deserialize(self.de)?;
-        match reserved._slash.parse()? {
-            ReservedKeyValueParsed::Cid(cid) => {
+        let reserved = ReservedKeyLinkMap::deserialize(self.de)?;
+
+        match reserved.parse()? {
+            ReservedKeyValueParsed::Link(cid) => {
                 visitor.visit_newtype_struct(BytesDeserializer::new(&cid.to_bytes()))
             }
             _ => Err(de::Error::custom("Expected a CID")),
@@ -99,8 +100,8 @@ where
     where
         V: de::Visitor<'de>,
     {
-        let reserved = ReservedKeyMap::deserialize(self.de)?;
-        match reserved._slash.parse()? {
+        let reserved = ReservedKeyBytesMap::deserialize(self.de)?;
+        match reserved.parse()? {
             ReservedKeyValueParsed::Bytes(bytes) => visitor.visit_byte_buf(bytes),
             _ => Err(de::Error::custom("Expected bytes")),
         }
@@ -237,6 +238,7 @@ where
         V: de::Visitor<'de>,
     {
         self.deserialize_reserved_bytes(Visitor::new(visitor))
+        // self.de.deserialize_bytes(Visitor::new(visitor))
     }
 
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, D::Error>
@@ -244,6 +246,7 @@ where
         V: de::Visitor<'de>,
     {
         self.deserialize_reserved_bytes(Visitor::new(visitor))
+        // self.de.deserialize_byte_buf(Visitor::new(visitor))
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, D::Error>
@@ -564,18 +567,24 @@ where
     where
         A: de::MapAccess<'de>,
     {
-        // Get the first key, if it's the reserved `"/"` one, deserialize in a a special way.
+        // Get the first key, if it's a reserved `"$bytes"` or `"$link"` one, deserialize in a a special way.
         let maybe_key = visitor.next_key::<String>()?;
 
         match maybe_key {
-            Some(ref key) if key == "/" => {
-                let value: ReservedKeyValue = visitor.next_value()?;
-                match value.parse()? {
-                    ReservedKeyValueParsed::Cid(cid) => self
-                        .visitor
-                        .visit_newtype_struct(BytesDeserializer::new(&cid.to_bytes())),
-                    ReservedKeyValueParsed::Bytes(bytes) => self.visitor.visit_byte_buf(bytes),
-                }
+            Some(ref key) if key == "$bytes" => {
+                let base_encoded_bytes: String = visitor.next_value()?;
+                let bytes = Base::Base64.decode(&base_encoded_bytes[..]).map_err(|_| {
+                    de::Error::custom(format!("Cannot base decode bytes `{}`", base_encoded_bytes))
+                })?;
+                self.visitor.visit_byte_buf(bytes)
+            }
+            Some(ref key) if key == "$link" => {
+                let base_encoded_cid: String = visitor.next_value()?;
+                let cid = Cid::try_from(&base_encoded_cid[..]).map_err(|_| {
+                    de::Error::custom(format!("Invalid CID `{}`", base_encoded_cid))
+                })?;
+                self.visitor
+                    .visit_newtype_struct(BytesDeserializer::new(&cid.to_bytes()))
             }
             _ => self.visitor.visit_map(MapAccess::new(visitor, maybe_key)),
         }

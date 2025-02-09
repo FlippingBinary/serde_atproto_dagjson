@@ -1,12 +1,13 @@
 [package]
-name = "serde_ipld_dagjson"
+name = "serde_atproto_dagjson"
 version = "0.2.0"
 authors = [
-    "Volker Mische <volker.mische@gmail.com>"
+  "Volker Mische <volker.mische@gmail.com>",
+  "Jon Musselwhite (@musselwhite.dev)",
 ]
-repository = "https://github.com/ipld/serde_ipld_dagjson"
+repository = "https://github.com/FlippingBinary/serde_atproto_dagjson"
 edition = "2021"
-description = "IPLD DAG-JSON support for Serde."
+description = "At protocol's version of DAG-JSON support for Serde."
 license = "MIT OR Apache-2.0"
 categories = ["data-structures", "encoding"]
 

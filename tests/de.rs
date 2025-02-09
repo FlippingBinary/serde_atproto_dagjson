@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, str::FromStr};
 
 use ipld_core::{cid::Cid, ipld::Ipld};
 use serde_bytes::{ByteArray, ByteBuf};
-use serde_ipld_dagjson::{de, to_vec, DecodeError};
+use serde_atproto_dagjson::{de, to_vec, DecodeError};
 
 #[test]
 fn test_hello_world() {
@@ -17,7 +17,7 @@ fn test_hello_world() {
 
 #[test]
 fn test_cid() {
-    let data = br#"{"/": "bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}"#;
+    let data = br#"{"$link": "bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}"#;
     let ipld: Ipld = de::from_slice(data).unwrap();
     let expected = Ipld::Link(
         Cid::from_str("bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy").unwrap(),
@@ -27,7 +27,7 @@ fn test_cid() {
 
 #[test]
 fn test_direct_cid() {
-    let data = br#"{"/": "bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}"#;
+    let data = br#"{"$link": "bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}"#;
     let cid: Cid = de::from_slice(&data[..]).unwrap();
     let expected =
         Cid::from_str("bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy").unwrap();
@@ -37,7 +37,7 @@ fn test_direct_cid() {
 #[test]
 fn test_nested_cid() {
     let data =
-        br#"{"hello": {"/": "bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}}"#;
+        br#"{"hello": {"$link": "bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}}"#;
     let ipld: Ipld = de::from_slice(data).unwrap();
     let expected = Ipld::Map(BTreeMap::from([(
         "hello".to_string(),
@@ -50,7 +50,7 @@ fn test_nested_cid() {
 
 #[test]
 fn test_array_cid() {
-    let data = br#"[{"/": "bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}]"#;
+    let data = br#"[{"$link": "bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}]"#;
     let ipld: Ipld = de::from_slice(data).unwrap();
     let expected = Ipld::List(vec![Ipld::Link(
         Cid::from_str("bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy").unwrap(),
@@ -60,7 +60,7 @@ fn test_array_cid() {
 
 #[test]
 fn test_bytes() {
-    let data = br#"{"/": { "bytes": "dm14"}}"#;
+    let data = br#"{"$bytes": "dm14"}"#;
     let ipld: Ipld = de::from_slice(data).unwrap();
     let expected = Ipld::Bytes(vec![118, 109, 120]);
     assert_eq!(ipld, expected);
@@ -68,7 +68,7 @@ fn test_bytes() {
 
 #[test]
 fn test_nested_bytes() {
-    let data = br#"{"nested": {"/": {"bytes": "dm14"}}}"#;
+    let data = br#"{"nested": {"$bytes": "dm14"}}"#;
     let ipld: Ipld = de::from_slice(data).unwrap();
     let expected = Ipld::Map(BTreeMap::from([(
         "nested".to_string(),
@@ -79,7 +79,7 @@ fn test_nested_bytes() {
 
 #[test]
 fn test_direct_bytes() {
-    let data = br#"{"/": {"bytes": "dm14"}}"#;
+    let data = br#"{"$bytes": "dm14"}"#;
     let bytes: serde_bytes::ByteBuf = de::from_slice(data).unwrap();
     let expected = ByteBuf::from([118, 109, 120]);
     assert_eq!(bytes, expected);
@@ -87,7 +87,7 @@ fn test_direct_bytes() {
 
 #[test]
 fn test_direct_byte_array() {
-    let data = br#"{"/": {"bytes": "dm14"}}"#;
+    let data = br#"{"$bytes": "dm14"}"#;
     let bytes: ByteArray<3> = de::from_slice(data).unwrap();
     let expected = ByteArray::new([118, 109, 120]);
     assert_eq!(bytes, expected);
@@ -252,40 +252,8 @@ fn test_ipaddr_deserialization() {
 }
 
 #[test]
-fn test_invalid_reserved_cid() {
-    let data = br#"{"/": true}"#;
-    let ipld: Result<Ipld, _> = de::from_slice(data);
-    assert!(ipld.is_err());
-}
-
-#[test]
 fn test_invalid_reserved_bytes() {
-    let data = br#"{"/": {"bytes": false}}"#;
-    let ipld: Result<Ipld, _> = de::from_slice(data);
-    assert!(ipld.is_err());
-}
-
-/// The reserved key `"/"` is deserialized normally if it's not the first element of a map.
-#[test]
-fn test_reserved_later() {
-    let data =
-        br#"{"some": "data", "/": "bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}"#;
-    let ipld: Ipld = de::from_slice(data).unwrap();
-    let expected = Ipld::Map(BTreeMap::from([
-        ("some".to_string(), Ipld::String("data".to_string())),
-        (
-            "/".to_string(),
-            Ipld::String("bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy".to_string()),
-        ),
-    ]));
-    assert_eq!(ipld, expected);
-}
-
-/// The reserved key `"/"` must be the only key in a map, else it's an error.
-#[test]
-fn test_reserved_trailing() {
-    let data =
-        br#"{"/": "bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy", "trailing": 123}"#;
+    let data = br#"{"$bytes": false}"#;
     let ipld: Result<Ipld, _> = de::from_slice(data);
     assert!(ipld.is_err());
 }

@@ -6,7 +6,7 @@ use serde::{ser, Serialize};
 
 use crate::{
     error::EncodeError,
-    shared::{ReservedKeyMap, ReservedKeyValue},
+    shared::{ReservedKeyBytesMap, ReservedKeyLinkMap},
 };
 
 /// Serializes a value to a vector.
@@ -19,6 +19,18 @@ where
     let serializer = Serializer::new(&mut json_serializer);
     value.serialize(serializer)?;
     Ok(writer)
+}
+
+/// Serializes a value to a string.
+pub fn to_string<T>(value: &T) -> Result<String, EncodeError>
+where
+    T: ser::Serialize + ?Sized,
+{
+    let mut writer = Vec::new();
+    let mut json_serializer = serde_json::Serializer::new(&mut writer);
+    let serializer = Serializer::new(&mut json_serializer);
+    value.serialize(serializer)?;
+    Ok(String::from_utf8(writer).expect("serde_json does not produce invalid utf8"))
 }
 
 /// Serializes a value to a writer.
@@ -132,10 +144,8 @@ where
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
-        let bytes = ReservedKeyMap {
-            _slash: ReservedKeyValue::Bytes {
-                bytes: Base::Base64.encode(v),
-            },
+        let bytes = ReservedKeyBytesMap {
+            _bytes: Base::Base64.encode(v),
         };
         bytes.serialize(self.ser)
     }
@@ -300,7 +310,7 @@ impl<'a, T: ?Sized> SerializeRef<'a, T> {
     }
 }
 
-impl<'a, T> ser::Serialize for SerializeRef<'a, T>
+impl<T> ser::Serialize for SerializeRef<'_, T>
 where
     T: ?Sized + ser::Serialize,
 {
@@ -551,8 +561,8 @@ where
 
     fn serialize_bytes(self, value: &[u8]) -> Result<Self::Ok, Self::Error> {
         let cid = Cid::try_from(value).map_err(|_| ser::Error::custom("Invalid CID"))?;
-        let cid_json = ReservedKeyMap {
-            _slash: ReservedKeyValue::Cid(cid.to_string()),
+        let cid_json = ReservedKeyLinkMap {
+            _link: cid.to_string(),
         };
         SerializeSized::new(cid_json).serialize(self.0)
     }

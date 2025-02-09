@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, str::FromStr};
 use ipld_core::cid::Cid;
 use serde::Serialize;
 use serde_bytes::{ByteBuf, Bytes};
-use serde_ipld_dagjson::to_vec;
+use serde_atproto_dagjson::to_vec;
 
 #[test]
 fn test_string() {
@@ -45,19 +45,19 @@ fn test_f32() {
 
 #[test]
 fn test_infinity() {
-    let json = to_vec(&::std::f64::INFINITY);
+    let json = to_vec(&f64::INFINITY);
     assert!(json.is_err(), "Only finite numbers are supported.");
 }
 
 #[test]
 fn test_neg_infinity() {
-    let json = to_vec(&::std::f64::NEG_INFINITY);
+    let json = to_vec(&f64::NEG_INFINITY);
     assert!(json.is_err(), "Only finite numbers are supported.");
 }
 
 #[test]
 fn test_nan() {
-    let json = to_vec(&::std::f32::NAN);
+    let json = to_vec(&f32::NAN);
     assert!(json.is_err(), "Only finite numbers are supported.");
 }
 
@@ -85,7 +85,7 @@ fn test_integer() {
     }
     // u64
     {
-        let json = to_vec(&::std::u64::MAX).unwrap();
+        let json = to_vec(&u64::MAX).unwrap();
         assert_eq!(json, b"18446744073709551615");
     }
     // u128 within u64 range
@@ -135,7 +135,7 @@ fn test_cid() {
     let json = to_vec(&cid).unwrap();
     assert_eq!(
         json,
-        br#"{"/":"bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}"#
+        br#"{"$link":"bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}"#
     );
 }
 
@@ -151,7 +151,7 @@ fn test_nested_cid() {
     let json = to_vec(&nested).unwrap();
     assert_eq!(
         json,
-        br#"{"some":{"/":"bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}}"#
+        br#"{"some":{"$link":"bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy"}}"#
     );
 }
 
@@ -159,7 +159,7 @@ fn test_nested_cid() {
 fn test_bytes() {
     let bytes = Bytes::new(b"vmx");
     let json = to_vec(&bytes).unwrap();
-    assert_eq!(json, br#"{"/":{"bytes":"dm14"}}"#);
+    assert_eq!(json, br#"{"$bytes":"dm14"}"#);
 }
 
 #[test]
@@ -172,5 +172,5 @@ fn test_nested_bytes() {
     let bytes = ByteBuf::from(b"vmx");
     let nested = Nested { some: bytes };
     let json = to_vec(&nested).unwrap();
-    assert_eq!(json, br#"{"some":{"/":{"bytes":"dm14"}}}"#);
+    assert_eq!(json, br#"{"some":{"$bytes":"dm14"}}"#);
 }

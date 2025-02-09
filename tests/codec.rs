@@ -6,7 +6,7 @@ use ipld_core::{
     ipld,
     ipld::Ipld,
 };
-use serde_ipld_dagjson::codec::DagJsonCodec;
+use serde_atproto_dagjson::codec::DagJsonCodec;
 
 #[test]
 fn test_codec_encode() {
